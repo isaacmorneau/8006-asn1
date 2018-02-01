@@ -7,15 +7,18 @@ IPA='iptables -A'
 TCP='-m tcp -p tcp'
 UDP='-m udp -p udp'
 
+echo "Clearing existing tables"
 #drop tcp existing rules and user chains
 iptables -F
 iptables -X
 
+echo "Creating user tables"
 #create allow rule chain
 iptables -N ENTRY
-#create forward rule chain
-iptables -N REST
+#create everything else accounting chain
+iptables -N CATCH_ALL
 
+echo "Setting default policy to DROP"
 #set drop as default
 iptables -P INPUT DROP
 iptables -P OUTPUT DROP
@@ -25,48 +28,57 @@ iptables -P FORWARD DROP
 #initialize acounting rules
 IO_ARR=('INPUT' 'OUTPUT')
 for t in ${IO_ARR[@]}; do
+    echo "Setting accounting rules for $t"
     $IPA $t $TCP --sport www -j ENTRY
     $IPA $t $TCP --dport www -j ENTRY
     $IPA $t $TCP --sport ssh -j ENTRY
     $IPA $t $TCP --dport ssh -j ENTRY
 done
 
-#if theres no match, forward it to the REST rule chain
-iptables -A INPUT  -p all -j REST
-iptables -A OUTPUT -p all -j REST
+echo "Setting forward for CATCH_ALL"
+#if theres no match, forward it to the everything else rule chain
+iptables -A INPUT  -p all -j CATCH_ALL
+iptables -A OUTPUT -p all -j CATCH_ALL
 
 #disalow entry from any port less thatn 1024 when dest is 80
 iptables -A ENTRY -m tcp -p tcp --sport 0:1023 --dport 80 -j DROP
 
 #load the configs into arrays
-IFS="\n"
-cat tcp_acpt.txt | read -ra ACC_TCP_ARR
-cat udp_acpt.txt | read -ra ACC_UDP_ARR
-cat tcp_drop.txt | read -ra DRP_TCP_ARR
-cat udp_drop.txt | read -ra DRP_UDP_ARR
-#add accept and drop riles for TCP to the ENTRY and REST chains
-for i in ${ACC_TCP_ARR[@]}; do
-    $IPA ENTRY $TCP --sport $i -j ACCEPT
-    $IPA ENTRY $TCP --dport $i -j ACCEPT
-    $IPA REST  $TCP --sport $i -j ACCEPT
-    $IPA REST  $TCP --dport $i -j ACCEPT
+declare -a ACC_TCP_ARR
+declare -a ACC_UDP_ARR
+declare -a DRP_TCP_ARR
+declare -a DRP_UDP_ARR
+readarray -t ACC_TCP_ARR < tcp_acpt.txt
+readarray -t ACC_UDP_ARR < udp_acpt.txt
+readarray -t DRP_TCP_ARR < tcp_drop.txt
+readarray -t DRP_UDP_ARR < udp_drop.txt
+#add accept and drop riles for TCP to the ENTRY and CATCH_ALLchains
+for p in ${ACC_TCP_ARR[@]}; do
+    echo "Setting ACCEPT for TCP port $p"
+    $IPA ENTRY     $TCP --sport $p -j ACCEPT
+    $IPA ENTRY     $TCP --dport $p -j ACCEPT
+    $IPA CATCH_ALL $TCP --sport $p -j ACCEPT
+    $IPA CATCH_ALL $TCP --dport $p -j ACCEPT
 done
-for i in ${DRP_TCP_ARR[@]}; do
-    $IPA ENTRY $TCP --sport $i -j DROP
-    $IPA ENTRY $TCP --dport $i -j DROP
-    $IPA REST  $TCP --sport $i -j DROP
-    $IPA REST  $TCP --dport $i -j DROP
+for p in ${DRP_TCP_ARR[@]}; do
+    echo "Setting DROP for TCP port $p"
+    $IPA ENTRY     $TCP --sport $p -j DROP
+    $IPA ENTRY     $TCP --dport $p -j DROP
+    $IPA CATCH_ALL $TCP --sport $p -j DROP
+    $IPA CATCH_ALL $TCP --dport $p -j DROP
 done
 
-for i in ${ACC_UDP_ARR[@]}; do
-    $IPA ENTRY $UDP --sport $i -j ACCEPT
-    $IPA ENTRY $UDP --dport $i -j ACCEPT
-    $IPA REST  $UDP --sport $i -j ACCEPT
-    $IPA REST  $UDP --dport $i -j ACCEPT
+for p in ${ACC_UDP_ARR[@]}; do
+    echo "Setting ACCEPT for UDP port $p"
+    $IPA ENTRY     $UDP --sport $p -j ACCEPT
+    $IPA ENTRY     $UDP --dport $p -j ACCEPT
+    $IPA CATCH_ALL $UDP --sport $p -j ACCEPT
+    $IPA CATCH_ALL $UDP --dport $p -j ACCEPT
 done
-for i in ${DRP_UDP_ARR[@]}; do
-    $IPA ENTRY $UDP --sport $i -j DROP
-    $IPA ENTRY $UDP --dport $i -j DROP
-    $IPA REST  $UDP --sport $i -j DROP
-    $IPA REST  $UDP --dport $i -j DROP
+for p in ${DRP_UDP_ARR[@]}; do
+    echo "Setting DROP for UDP port $p"
+    $IPA ENTRY     $UDP --sport $p -j DROP
+    $IPA ENTRY     $UDP --dport $p -j DROP
+    $IPA CATCH_ALL $UDP --sport $p -j DROP
+    $IPA CATCH_ALL $UDP --dport $p -j DROP
 done
