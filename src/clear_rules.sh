@@ -1,7 +1,7 @@
 #!/bin/bash
 if [[ $EUID -ne 0 ]]; then
-   echo "Needs Root!" 1>&2
-   exit 1
+    echo "Requesting Root" 1>&2
+    exit `sudo ${0}`
 fi
 #drop existing rules
 iptables -F
