@@ -23,14 +23,13 @@ iptables -P FORWARD DROP
 
 
 #initialize acounting rules
-iptables -A  INPUT -m tcp -p tcp --sport www -j ENTRY
-iptables -A  INPUT -m tcp -p tcp --dport www -j ENTRY
-iptables -A  INPUT -m tcp -p tcp --sport ssh -j ENTRY
-iptables -A  INPUT -m tcp -p tcp --dport ssh -j ENTRY
-iptables -A OUTPUT -m tcp -p tcp --sport www -j ENTRY
-iptables -A OUTPUT -m tcp -p tcp --dport www -j ENTRY
-iptables -A OUTPUT -m tcp -p tcp --sport ssh -j ENTRY
-iptables -A OUTPUT -m tcp -p tcp --dport ssh -j ENTRY
+IO_ARR=('INPUT' 'OUTPUT')
+for t in ${IO_ARR[@]}; do
+    $IPA $t $TCP --sport www -j ENTRY
+    $IPA $t $TCP --dport www -j ENTRY
+    $IPA $t $TCP --sport ssh -j ENTRY
+    $IPA $t $TCP --dport ssh -j ENTRY
+done
 
 #if theres no match, forward it to the REST rule chain
 iptables -A INPUT  -p all -j REST
